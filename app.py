@@ -2,7 +2,6 @@ import streamlit as st
 import PyPDF2
 import google.generativeai as genai
 from fpdf import FPDF
-from docx import Document
 import io
 import re
 import time
@@ -16,70 +15,74 @@ try:
 except:
     st.set_page_config(page_title="workersCV", page_icon="🎯", layout="centered")
 
-# 2. CSS AVANZADO (ESTILO MODERNO Y MINIMALISTA)
+# 2. CSS PROFESIONAL Y MÓVIL (FIX DE SCROLL)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700;900&display=swap');
 
-    /* Reset general */
     * { font-family: 'Inter', sans-serif; }
     
     [data-testid="stSidebar"] { display: none !important; }
-    label { display: none !important; }
     #MainMenu, footer, header { visibility: hidden; }
+
+    /* Fix para permitir scroll en celulares */
+    html, body, [data-testid="stAppViewContainer"] {
+        overflow-y: auto !important;
+    }
 
     .stApp { 
         background-color: #0A0A0B; 
         background-image: 
-            radial-gradient(circle at 0% 0%, rgba(223, 255, 0, 0.03) 0%, transparent 40%),
-            radial-gradient(circle at 100% 100%, rgba(223, 255, 0, 0.03) 0%, transparent 40%);
+            radial-gradient(circle at 0% 0%, rgba(223, 255, 0, 0.04) 0%, transparent 40%),
+            radial-gradient(circle at 100% 100%, rgba(223, 255, 0, 0.04) 0%, transparent 40%);
         color: #E4E4E7;
     }
     
-    .block-container { padding-top: 2rem !important; max-width: 700px !important; }
+    .block-container { padding-top: 1rem !important; max-width: 700px !important; }
 
     /* Logo y Título */
     .brand-title {
-        font-size: 64px; text-align: center; color: #DFFF00; 
+        font-size: 52px; text-align: center; color: #DFFF00; 
         margin-bottom: 0px; font-weight: 900; letter-spacing: -3px;
         line-height: 1;
     }
+    @media (max-width: 480px) { .brand-title { font-size: 40px; } }
+
     .brand-subtitle {
-        color: #71717A; text-align: center; margin-bottom: 40px; 
-        font-size: 16px; font-weight: 300; letter-spacing: 1px;
+        color: #71717A; text-align: center; margin-bottom: 30px; 
+        font-size: 14px; font-weight: 300; letter-spacing: 1px;
     }
 
     /* Tarjetas de Vidrio */
     .stCard {
-        background: rgba(255, 255, 255, 0.02);
-        backdrop-filter: blur(20px);
-        border-radius: 24px; padding: 30px;
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        margin-bottom: 25px;
-        box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+        background: rgba(255, 255, 255, 0.03);
+        backdrop-filter: blur(10px);
+        border-radius: 20px; padding: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        margin-bottom: 15px;
     }
 
-    /* Etiquetas de Sección */
+    /* Labels de sección */
     .section-label {
-        color: #DFFF00; font-size: 11px; font-weight: 700;
+        color: #DFFF00; font-size: 10px; font-weight: 700;
         text-transform: uppercase; letter-spacing: 2px;
-        margin-bottom: 12px; opacity: 0.8;
+        margin-bottom: 8px; opacity: 0.9;
     }
 
-    /* Inputs Modernos */
+    /* Inputs y Áreas de Texto */
     .stTextArea textarea {
-        background-color: rgba(0, 0, 0, 0.3) !important;
+        background-color: rgba(0, 0, 0, 0.4) !important;
         border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        border-radius: 16px !important; color: #DFFF00 !important;
-        padding: 15px !important; font-size: 14px !important;
+        border-radius: 14px !important; color: #DFFF00 !important;
+        font-size: 14px !important;
     }
 
-    /* Pestañas (Tabs) Estilizadas */
-    .stTabs [data-baseweb="tab-list"] { gap: 10px; background: transparent; }
+    /* Tabs Móviles */
+    .stTabs [data-baseweb="tab-list"] { gap: 5px; }
     .stTabs [data-baseweb="tab"] {
-        height: 45px; border-radius: 12px; border: none;
+        height: 40px; border-radius: 10px; border: none;
         background-color: rgba(255,255,255,0.03); color: #71717A;
-        font-size: 13px; font-weight: 500; transition: all 0.3s;
+        font-size: 12px;
     }
     .stTabs [aria-selected="true"] { 
         background-color: #DFFF00 !important; color: #000 !important; font-weight: 700;
@@ -88,34 +91,35 @@ st.markdown("""
     /* Botón de Acción */
     div.stButton > button {
         background: #DFFF00 !important; color: #000 !important;
-        border-radius: 16px !important; font-weight: 800 !important;
-        height: 56px !important; width: 100%; border: none;
-        font-size: 16px !important; text-transform: uppercase;
-        letter-spacing: 1px; transition: transform 0.2s;
+        border-radius: 14px !important; font-weight: 800 !important;
+        height: 50px !important; width: 100%; border: none;
+        text-transform: uppercase; letter-spacing: 1px;
     }
-    div.stButton > button:hover { transform: translateY(-2px); }
 
-    /* Respuesta de la IA */
     .ai-response {
-        background: rgba(255, 255, 255, 0.03);
-        border-radius: 20px; padding: 25px;
+        background: rgba(255, 255, 255, 0.02);
+        border-radius: 15px; padding: 20px;
         border-left: 4px solid #DFFF00; color: #D1D1D6;
-        font-size: 15px; line-height: 1.7;
+        font-size: 14px; line-height: 1.6;
     }
 
-    /* Iconos inferiores */
-    .footer-icons {
-        margin-top: 40px; opacity: 0.1; text-align: center; font-size: 20px;
-    }
+    /* Fix para el selector de idioma en móvil */
+    .stSelectbox label { display: none !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- DICCIONARIO IDIOMAS ---
-idiomas = {
-    "Español": {"leg": "Optimización ATS y Preparación de Entrevistas.", "tabs": ["Análisis", "Optimizar", "Empresa", "Coach", "Historial"], "ia": "Responde en Español."},
+# --- DICCIONARIO DE IDIOMAS (LOS 10 SOLICITADOS) ---
+idiomas_data = {
+    "Español": {"leg": "Optimización ATS y Preparación Profesional.", "tabs": ["Análisis", "Optimizar", "Empresa", "Coach", "Historial"], "ia": "Responde en Español."},
     "English": {"leg": "ATS Optimization & Interview Readiness.", "tabs": ["Analysis", "Optimize", "Company", "Coach", "History"], "ia": "Respond in English."},
     "Français": {"leg": "Optimisation ATS et Préparation.", "tabs": ["Analyse", "Optimiser", "Entreprise", "Coach", "Historique"], "ia": "Répondez en Français."},
     "Português": {"leg": "Otimização de ATS e Preparação.", "tabs": ["Análise", "Otimizar", "Empresa", "Coach", "Histórico"], "ia": "Responda em Português."},
+    "Deutsch": {"leg": "ATS-Optimierung und Vorbereitung.", "tabs": ["Analyse", "Optimieren", "Unternehmen", "Coach", "Verlauf"], "ia": "Antworte auf Deutsch."},
+    "Italiano": {"leg": "Ottimizzazione ATS e Preparazione.", "tabs": ["Analisi", "Ottimizza", "Azienda", "Coach", "Cronologia"], "ia": "Rispondi in Italiano."},
+    "Русский": {"leg": "Оптимиización ATS и подготовка.", "tabs": ["Анализ", "Оптимизация", "Компания", "Коуч", "История"], "ia": "Отвечай по-русски."},
+    "中文": {"leg": "ATS 优化和准备。", "tabs": ["分析", "优化", "公司", "教练", "历史"], "ia": "用中文回答。"},
+    "日本語": {"leg": "ATS最適化と準備。", "tabs": ["分析", "最適化", "企業", "コーチ", "履歴"], "ia": "日本語で答えて。"},
+    "한국어": {"leg": "ATS 최적화 및 준비.", "tabs": ["분석", "최적화", "기업", "코치", "히스토리"], "ia": "한국어로 답변해."}
 }
 
 # --- LÓGICA IA ---
@@ -131,25 +135,16 @@ def llamar_ia(p):
             except: time.sleep(3); continue
         return "⚠️ Servidor ocupado. Reintenta."
     except Exception as e:
-        return "Error: Verifica la configuración de Secrets."
+        return "Error de conexión. Verifica la configuración."
 
-# --- GENERADORES ---
-def limpiar(t): return re.sub(r'\*|_|#', '', t).strip()
-
-class PDF(FPDF):
-    def add_cv_data(self, raw):
-        self.add_page(); self.set_font("Arial", size=10)
-        safe = limpiar(raw).encode('latin-1', 'ignore').decode('latin-1')
-        self.multi_cell(0, 5, safe)
-
-# --- INTERFAZ workersCV ---
+# --- INTERFAZ ---
 if "historial" not in st.session_state: st.session_state.historial = []
 
-# Selector de Idioma Minimalista
-_, col_l = st.columns([4, 1.2])
-with col_l:
-    sel_lang = st.selectbox("", list(idiomas.keys()), label_visibility="collapsed")
-    t = idiomas[sel_lang]
+# Selector de Idioma (Sección superior limpia)
+lang_col1, lang_col2 = st.columns([2, 1])
+with lang_col2:
+    sel_lang = st.selectbox("Idioma", list(idiomas_data.keys()), label_visibility="collapsed")
+    t = idiomas_data[sel_lang]
 
 st.markdown("<h1 class='brand-title'>workersCV</h1>", unsafe_allow_html=True)
 st.markdown(f"<p class='brand-subtitle'>{t['leg']}</p>", unsafe_allow_html=True)
@@ -159,10 +154,10 @@ st.markdown('<div class="stCard">', unsafe_allow_html=True)
 c1, c2 = st.columns(2)
 with c1:
     st.markdown('<div class="section-label">Tu CV (PDF)</div>', unsafe_allow_html=True)
-    cv_f = st.file_uploader("c", type="pdf")
+    cv_f = st.file_uploader("c", type="pdf", label_visibility="collapsed")
 with c2:
     st.markdown('<div class="section-label">Oferta Laboral</div>', unsafe_allow_html=True)
-    job = st.text_area("j", placeholder="Pega la oferta aquí...", height=100)
+    job = st.text_area("j", placeholder="Pega la oferta aquí...", height=80, label_visibility="collapsed")
 st.markdown('</div>', unsafe_allow_html=True)
 
 # Lógica
@@ -175,9 +170,9 @@ tabs = st.tabs(t["tabs"])
 
 with tabs[0]: # ANÁLISIS
     if st.button("ANALIZAR MATCH →"):
-        if not cv_texto or not job: st.error("Faltan datos")
+        if not cv_texto or not job: st.warning("Faltan datos")
         else:
-            with st.spinner("Analizando..."):
+            with st.spinner("..."):
                 res = llamar_ia(f"{t['ia']} Score 0-100 y 2 consejos. CV: {cv_texto} Job: {job}")
                 st.markdown(f'<div class="ai-response">{res}</div>', unsafe_allow_html=True)
                 score = re.search(r'\d+', res).group() if re.search(r'\d+', res) else "0"
@@ -185,25 +180,23 @@ with tabs[0]: # ANÁLISIS
 
 with tabs[1]: # OPTIMIZAR
     if st.button("DISEÑAR CV ATS PRO →"):
-        if not cv_texto or not job: st.error("Faltan datos")
+        if not cv_texto or not job: st.warning("Faltan datos")
         else:
-            with st.spinner("Optimizando..."):
-                raw = llamar_ia(f"{t['ia']} Reescribe mi CV para ATS, una carilla. Sin horarios. Disponibilidad inmediata. CV: {cv_texto} Job: {job}")
+            with st.spinner("..."):
+                raw = llamar_ia(f"{t['ia']} CV ATS, una hoja. Sin horarios. Disponibilidad inmediata. CV: {cv_texto} Job: {job}")
                 st.markdown(f'<div class="ai-response">{raw}</div>', unsafe_allow_html=True)
-                pdf = PDF(); pdf.add_cv_data(raw)
-                st.download_button("📥 DESCARGAR PDF", data=pdf.output(dest='S').encode('latin-1'), file_name="workersCV_Pro.pdf")
 
 with tabs[2]: # EMPRESA
-    emp_n = st.text_input("e", placeholder="Nombre de la empresa...")
+    emp_n = st.text_input("e", placeholder="Nombre de la empresa...", label_visibility="collapsed")
     if st.button("INVESTIGAR VALORES →"):
         st.markdown(f'<div class="ai-response">{llamar_ia(f"{t['ia']} Historia y cultura de {emp_n}")}</div>', unsafe_allow_html=True)
 
 with tabs[3]: # COACH
     if st.button("SIMULAR PREGUNTAS →"):
-        st.markdown(f'<div class="ai-response">{llamar_ia(f"{t['ia']} 3 preguntas clave según mi perfil para este puesto")}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="ai-response">{llamar_ia(f"{t['ia']} 3 preguntas difíciles para este puesto según mi CV")}</div>', unsafe_allow_html=True)
 
 with tabs[4]: # HISTORIAL
     for i in st.session_state.historial[:5]:
         st.write(f"🕒 {i['f']} - Match Score: **{i['s']}%**")
 
-st.markdown("<div class='footer-icons'>⚙️ &nbsp; &nbsp; 📱 &nbsp; &nbsp; 👤</div>", unsafe_allow_html=True)
+st.markdown("<br><center style='opacity:0.05;'>⚙️ &nbsp; &nbsp; 📱 &nbsp; &nbsp; 👤</center>", unsafe_allow_html=True)
