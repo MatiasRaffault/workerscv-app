@@ -1,202 +1,200 @@
 import streamlit as st
 import PyPDF2
 import google.generativeai as genai
-from fpdf import FPDF
+import base64
 import io
 import re
 import time
-from datetime import datetime
 from PIL import Image
 
 # 1. CONFIGURACIÓN DE PÁGINA
 try:
     fav = Image.open("favicon.png")
-    st.set_page_config(page_title="workersCV", page_icon=fav, layout="centered")
+    st.set_page_config(page_title="workersCV | AI Agency", page_icon=fav, layout="wide")
 except:
-    st.set_page_config(page_title="workersCV", page_icon="🎯", layout="centered")
+    st.set_page_config(page_title="workersCV", page_icon="🎯", layout="wide")
 
-# 2. CSS PROFESIONAL Y MÓVIL (FIX DE SCROLL)
-st.markdown("""
+# --- FUNCIÓN MÁGICA PARA EL VIDEO DE FONDO ---
+def get_video_base64(video_path):
+    with open(video_path, "rb") as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
+
+# Intentar cargar el video
+try:
+    video_base64 = get_video_base64("background.mp4")
+    video_html = f'''
+        <video autoplay loop muted playsinline class="video-bg">
+            <source src="data:video/mp4;base64,{video_base64}" type="video/mp4">
+        </video>
+    '''
+except:
+    video_html = '<div class="video-bg" style="background:#0A0A0B;"></div>'
+
+# 2. DISEÑO NEXUS AI CON VIDEO
+st.markdown(f"""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700;900&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;700;800&family=Instrument+Serif:ital@1&family=Inter:wght@900&display=swap');
 
-    * { font-family: 'Inter', sans-serif; }
-    
-    [data-testid="stSidebar"] { display: none !important; }
-    #MainMenu, footer, header { visibility: hidden; }
+    #MainMenu, footer, header, [data-testid="stHeader"] {{ visibility: hidden !important; }}
+    .block-container {{ padding: 0 !important; max-width: 100% !important; }}
 
-    /* Fix para permitir scroll en celulares */
-    html, body, [data-testid="stAppViewContainer"] {
-        overflow-y: auto !important;
-    }
+    /* Estilo del Video de Fondo */
+    .video-bg {{
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        z-index: -1;
+        filter: brightness(0.5); /* Oscurece un poco el video para que se lea el texto */
+    }}
 
-    .stApp { 
-        background-color: #0A0A0B; 
-        background-image: 
-            radial-gradient(circle at 0% 0%, rgba(223, 255, 0, 0.04) 0%, transparent 40%),
-            radial-gradient(circle at 100% 100%, rgba(223, 255, 0, 0.04) 0%, transparent 40%);
-        color: #E4E4E7;
-    }
-    
-    .block-container { padding-top: 1rem !important; max-width: 700px !important; }
+    .hero-section {{
+        position: relative;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        color: white;
+        padding: 0 5%;
+    }}
 
-    /* Logo y Título */
-    .brand-title {
-        font-size: 52px; text-align: center; color: #DFFF00; 
-        margin-bottom: 0px; font-weight: 900; letter-spacing: -3px;
-        line-height: 1;
-    }
-    @media (max-width: 480px) { .brand-title { font-size: 40px; } }
+    .h1-line1 {{ font-family: 'Barlow', sans-serif; font-size: 70px; font-weight: 800; margin: 0; line-height: 1; text-shadow: 2px 2px 20px rgba(0,0,0,0.5); }}
+    .h1-line2 {{ font-family: 'Instrument Serif', serif; font-style: italic; font-size: 110px; margin: 0; line-height: 1; text-shadow: 2px 2px 20px rgba(0,0,0,0.5); }}
+    .subtext {{ font-family: 'Barlow', sans-serif; font-size: 20px; color: rgba(255,255,255,0.8); max-width: 700px; margin: 30px 0; }}
 
-    .brand-subtitle {
-        color: #71717A; text-align: center; margin-bottom: 30px; 
-        font-size: 14px; font-weight: 300; letter-spacing: 1px;
-    }
+    /* Widgets Glassmorphism */
+    .widget {{
+        position: fixed;
+        bottom: 30px;
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(15px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 15px 25px;
+        border-radius: 20px;
+        z-index: 10;
+        color: white;
+    }}
+    .widget-left {{ left: 30px; }}
+    .widget-right {{ right: 30px; border-radius: 50px; }}
 
-    /* Tarjetas de Vidrio */
-    .stCard {
-        background: rgba(255, 255, 255, 0.03);
-        backdrop-filter: blur(10px);
-        border-radius: 20px; padding: 20px;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        margin-bottom: 15px;
-    }
+    .pulse {{
+        height: 8px; width: 8px; background: #DFFF00; border-radius: 50%;
+        display: inline-block; margin-right: 10px; box-shadow: 0 0 10px #DFFF00;
+        animation: pulse-kf 2s infinite;
+    }}
+    @keyframes pulse-kf {{ 0% {{ opacity: 1; }} 50% {{ opacity: 0.3; }} 100% {{ opacity: 1; }} }}
 
-    /* Labels de sección */
-    .section-label {
-        color: #DFFF00; font-size: 10px; font-weight: 700;
-        text-transform: uppercase; letter-spacing: 2px;
-        margin-bottom: 8px; opacity: 0.9;
-    }
-
-    /* Inputs y Áreas de Texto */
-    .stTextArea textarea {
-        background-color: rgba(0, 0, 0, 0.4) !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        border-radius: 14px !important; color: #DFFF00 !important;
-        font-size: 14px !important;
-    }
-
-    /* Tabs Móviles */
-    .stTabs [data-baseweb="tab-list"] { gap: 5px; }
-    .stTabs [data-baseweb="tab"] {
-        height: 40px; border-radius: 10px; border: none;
-        background-color: rgba(255,255,255,0.03); color: #71717A;
-        font-size: 12px;
-    }
-    .stTabs [aria-selected="true"] { 
-        background-color: #DFFF00 !important; color: #000 !important; font-weight: 700;
-    }
-
-    /* Botón de Acción */
-    div.stButton > button {
-        background: #DFFF00 !important; color: #000 !important;
-        border-radius: 14px !important; font-weight: 800 !important;
-        height: 50px !important; width: 100%; border: none;
-        text-transform: uppercase; letter-spacing: 1px;
-    }
-
-    .ai-response {
+    /* Área de la App */
+    .tool-container {{
+        background: #0A0A0B;
+        padding: 80px 5%;
+        display: flex;
+        justify-content: center;
+    }}
+    .tool-card {{
         background: rgba(255, 255, 255, 0.02);
-        border-radius: 15px; padding: 20px;
-        border-left: 4px solid #DFFF00; color: #D1D1D6;
-        font-size: 14px; line-height: 1.6;
-    }
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 30px;
+        padding: 40px;
+        max-width: 800px;
+        width: 100%;
+    }}
 
-    /* Fix para el selector de idioma en móvil */
-    .stSelectbox label { display: none !important; }
+    div.stButton > button {{
+        background: #DFFF00 !important;
+        color: black !important;
+        border-radius: 50px !important;
+        font-weight: 800 !important;
+        height: 55px !important;
+        width: 100% !important;
+        border: none !important;
+        text-transform: uppercase;
+    }}
     </style>
-    """, unsafe_allow_html=True)
 
-# --- DICCIONARIO DE IDIOMAS (LOS 10 SOLICITADOS) ---
-idiomas_data = {
-    "Español": {"leg": "Optimización ATS y Preparación Profesional.", "tabs": ["Análisis", "Optimizar", "Empresa", "Coach", "Historial"], "ia": "Responde en Español."},
-    "English": {"leg": "ATS Optimization & Interview Readiness.", "tabs": ["Analysis", "Optimize", "Company", "Coach", "History"], "ia": "Respond in English."},
-    "Français": {"leg": "Optimisation ATS et Préparation.", "tabs": ["Analyse", "Optimiser", "Entreprise", "Coach", "Historique"], "ia": "Répondez en Français."},
-    "Português": {"leg": "Otimização de ATS e Preparação.", "tabs": ["Análise", "Otimizar", "Empresa", "Coach", "Histórico"], "ia": "Responda em Português."},
-    "Deutsch": {"leg": "ATS-Optimierung und Vorbereitung.", "tabs": ["Analyse", "Optimieren", "Unternehmen", "Coach", "Verlauf"], "ia": "Antworte auf Deutsch."},
-    "Italiano": {"leg": "Ottimizzazione ATS e Preparazione.", "tabs": ["Analisi", "Ottimizza", "Azienda", "Coach", "Cronologia"], "ia": "Rispondi in Italiano."},
-    "Русский": {"leg": "Оптимиización ATS и подготовка.", "tabs": ["Анализ", "Оптимизация", "Компания", "Коуч", "История"], "ia": "Отвечай по-русски."},
-    "中文": {"leg": "ATS 优化和准备。", "tabs": ["分析", "优化", "公司", "教练", "历史"], "ia": "用中文回答。"},
-    "日本語": {"leg": "ATS最適化と準備。", "tabs": ["分析", "最適化", "企業", "コーチ", "履歴"], "ia": "日本語で答えて。"},
-    "한국어": {"leg": "ATS 최적화 및 준비.", "tabs": ["분석", "최적화", "기업", "코치", "히스토리"], "ia": "한국어로 답변해."}
-}
+    {video_html}
 
-# --- LÓGICA IA ---
+    <div class="hero-section">
+        <div style="position: absolute; top: 40px; left: 5%; font-family:'Inter'; font-weight:900; font-size:24px;">
+            Workers<span style="color:#DFFF00;">CV</span>
+        </div>
+        <p class="h1-line1">Transformamos empresas con</p>
+        <p class="h1-line2">IA de Alto Rendimiento</p>
+        <p class="subtext">Optimización ATS y Preparación Profesional con Ingeniería de Datos.</p>
+        <a href="#tool" style="text-decoration:none;">
+            <div style="background:#DFFF00; color:black; padding:15px 40px; border-radius:50px; font-family:'Barlow'; font-weight:800; font-size:16px;">
+                EXPLORAR SOLUCIONES IA
+            </div>
+        </a>
+    </div>
+
+    <div class="widget widget-left">
+        <div style="font-family:'Barlow'; font-weight:700; font-size:11px; letter-spacing:1px;">
+            <span class="pulse"></span>AI CORE: ONLINE
+        </div>
+        <div style="font-family:'Barlow'; opacity:0.6; font-size:10px; margin-top:5px;">
+            📍 GENERAL RODRÍGUEZ, ARGENTINA
+        </div>
+    </div>
+
+    <div class="widget widget-right">
+        <div style="font-family:'Barlow'; font-weight:700; font-size:10px; letter-spacing:1px;">
+            NEXUS ECOSYSTEM
+        </div>
+    </div>
+""", unsafe_allow_html=True)
+
+# 3. LÓGICA DE LA IA
 def llamar_ia(p):
     try:
-        api_key_interna = st.secrets["GOOGLE_API_KEY"]
-        genai.configure(api_key=api_key_interna)
-        vivos = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        modelo_nombre = next((m for m in vivos if "1.5-flash" in m), vivos[0])
-        model = genai.GenerativeModel(modelo_nombre, generation_config={"temperature": 0.1})
-        for _ in range(2):
-            try: return model.generate_content(p).text
-            except: time.sleep(3); continue
-        return "⚠️ Servidor ocupado. Reintenta."
-    except Exception as e:
-        return "Error de conexión. Verifica la configuración."
+        api_key = st.secrets["GOOGLE_API_KEY"]
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        return model.generate_content(p).text
+    except: return "Error de conexión."
 
-# --- INTERFAZ ---
-if "historial" not in st.session_state: st.session_state.historial = []
+# 4. SECCIÓN DE LA HERRAMIENTA
+st.markdown('<div id="tool" class="tool-container">', unsafe_allow_html=True)
+with st.container():
+    st.markdown('<div class="tool-card">', unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown('<p style="color:#DFFF00; font-family:Barlow; font-weight:700; font-size:12px;">TU PERFIL (PDF)</p>', unsafe_allow_html=True)
+        cv_f = st.file_uploader("cv", type="pdf", label_visibility="collapsed")
+    with col2:
+        st.markdown('<p style="color:#DFFF00; font-family:Barlow; font-weight:700; font-size:12px;">OFERTA LABORAL</p>', unsafe_allow_html=True)
+        job = st.text_area("job", placeholder="Pega los requisitos aquí...", height=70, label_visibility="collapsed")
 
-# Selector de Idioma (Sección superior limpia)
-lang_col1, lang_col2 = st.columns([2, 1])
-with lang_col2:
-    sel_lang = st.selectbox("Idioma", list(idiomas_data.keys()), label_visibility="collapsed")
-    t = idiomas_data[sel_lang]
+    cv_texto = ""
+    if cv_f:
+        pdf_r = PyPDF2.PdfReader(cv_f)
+        for pg in pdf_r.pages: cv_texto += pg.extract_text()
 
-st.markdown("<h1 class='brand-title'>workersCV</h1>", unsafe_allow_html=True)
-st.markdown(f"<p class='brand-subtitle'>{t['leg']}</p>", unsafe_allow_html=True)
+    tab1, tab2, tab3 = st.tabs(["Análisis", "Optimizar", "Coach"])
 
-# PANEL CENTRAL
-st.markdown('<div class="stCard">', unsafe_allow_html=True)
-c1, c2 = st.columns(2)
-with c1:
-    st.markdown('<div class="section-label">Tu CV (PDF)</div>', unsafe_allow_html=True)
-    cv_f = st.file_uploader("c", type="pdf", label_visibility="collapsed")
-with c2:
-    st.markdown('<div class="section-label">Oferta Laboral</div>', unsafe_allow_html=True)
-    job = st.text_area("j", placeholder="Pega la oferta aquí...", height=80, label_visibility="collapsed")
+    with tab1:
+        if st.button("ANALIZAR COMPATIBILIDAD →"):
+            with st.spinner("..."):
+                res = llamar_ia(f"Score 0-100 y 2 consejos en Español. CV: {cv_texto} Job: {job}")
+                st.markdown(f'<div style="background:rgba(255,255,255,0.03); padding:20px; border-radius:20px; border-left:4px solid #DFFF00; margin-top:20px;">{res}</div>', unsafe_allow_html=True)
+
+    with tab2:
+        if st.button("DISEÑAR CV ATS PRO →"):
+            with st.spinner("..."):
+                raw = llamar_ia(f"CV ATS en Español, una carilla. Sin horarios. Disponibilidad inmediata. CV: {cv_texto} Job: {job}")
+                st.markdown(f'<div style="background:rgba(255,255,255,0.03); padding:20px; border-radius:20px; margin-top:20px;">{raw}</div>', unsafe_allow_html=True)
+
+    with tab3:
+        if st.button("PREPARAR ENTREVISTA →"):
+            with st.spinner("..."):
+                res = llamar_ia(f"3 preguntas difíciles para {job}")
+                st.markdown(f'<div style="background:rgba(255,255,255,0.03); padding:20px; border-radius:20px; margin-top:20px;">{res}</div>', unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
-
-# Lógica
-cv_texto = ""
-if cv_f:
-    r = PyPDF2.PdfReader(cv_f)
-    for pg in r.pages: cv_texto += pg.extract_text()
-
-tabs = st.tabs(t["tabs"])
-
-with tabs[0]: # ANÁLISIS
-    if st.button("ANALIZAR MATCH →"):
-        if not cv_texto or not job: st.warning("Faltan datos")
-        else:
-            with st.spinner("..."):
-                res = llamar_ia(f"{t['ia']} Score 0-100 y 2 consejos. CV: {cv_texto} Job: {job}")
-                st.markdown(f'<div class="ai-response">{res}</div>', unsafe_allow_html=True)
-                score = re.search(r'\d+', res).group() if re.search(r'\d+', res) else "0"
-                st.session_state.historial.insert(0, {"f": datetime.now().strftime("%H:%M"), "s": score})
-
-with tabs[1]: # OPTIMIZAR
-    if st.button("DISEÑAR CV ATS PRO →"):
-        if not cv_texto or not job: st.warning("Faltan datos")
-        else:
-            with st.spinner("..."):
-                raw = llamar_ia(f"{t['ia']} CV ATS, una hoja. Sin horarios. Disponibilidad inmediata. CV: {cv_texto} Job: {job}")
-                st.markdown(f'<div class="ai-response">{raw}</div>', unsafe_allow_html=True)
-
-with tabs[2]: # EMPRESA
-    emp_n = st.text_input("e", placeholder="Nombre de la empresa...", label_visibility="collapsed")
-    if st.button("INVESTIGAR VALORES →"):
-        st.markdown(f'<div class="ai-response">{llamar_ia(f"{t['ia']} Historia y cultura de {emp_n}")}</div>', unsafe_allow_html=True)
-
-with tabs[3]: # COACH
-    if st.button("SIMULAR PREGUNTAS →"):
-        st.markdown(f'<div class="ai-response">{llamar_ia(f"{t['ia']} 3 preguntas difíciles para este puesto según mi CV")}</div>', unsafe_allow_html=True)
-
-with tabs[4]: # HISTORIAL
-    for i in st.session_state.historial[:5]:
-        st.write(f"🕒 {i['f']} - Match Score: **{i['s']}%**")
-
-st.markdown("<br><center style='opacity:0.05;'>⚙️ &nbsp; &nbsp; 📱 &nbsp; &nbsp; 👤</center>", unsafe_allow_html=True)
